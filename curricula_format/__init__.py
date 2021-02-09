@@ -12,6 +12,13 @@ from curricula_grade.grader.report import AssignmentReport, ProblemReport
 from curricula.library.template import jinja2_create_environment, pretty
 
 
+root = Path(__file__).absolute().parent
+
+
+class Paths:
+    TEMPLATE = root.joinpath("template")
+
+
 def sum_weights(results: Iterable[Result]) -> Decimal:
     return sum(result.task.weight for result in results)
 
@@ -37,27 +44,27 @@ class ProblemSummary:
         """Cache some common analysis of the data."""
 
         for task in self.problem.grader.tasks:
-            result = self.report[task.name]
+            result = self.report.automated[task.name]
 
-            if task.stage == "setup":
+            if not task.graded:
                 if result.error is not None:
                     self.setup_results_errored.append(result)
 
-            if task.stage == "test":
+            else:
                 self.test_results_count += 1
 
                 # Increment counts
                 if result.passing and result.complete:
                     self.test_results_passing_count += 1
-                    self.test_results_passing_weight += task.weight
+                    self.test_results_passing_weight += task.weight or 1
 
     @property
     def test_results_passing(self) -> Iterator[Result]:
         """Count the number of tests that passed."""
 
         for task in self.problem.grader.tasks:
-            if task.stage == "test":
-                result = self.report[task.name]
+            if task.graded:
+                result = self.report.automated[task.name]
                 if result.passing and result.complete:
                     yield result
 
@@ -66,8 +73,8 @@ class ProblemSummary:
         """Count the number of tests that passed."""
 
         for task in self.problem.grader.tasks:
-            if task.stage == "test":
-                result = self.report[task.name]
+            if task.graded:
+                result = self.report.automated[task.name]
                 if not result.passing or not result.complete:
                     yield result
 
@@ -80,7 +87,7 @@ class ProblemSummary:
         """Format a fraction."""
 
         numerator = self.test_results_passing_weight
-        denominator = self.problem.grader.test.weight
+        denominator = self.problem.grader.register.weight()
         if denominator == 0:
             return f"0/0"
 
@@ -98,7 +105,7 @@ class ProblemSummary:
             return Decimal("0")
 
         numerator = self.test_results_passing_weight
-        denominator = self.problem.grader.test.weight
+        denominator = self.problem.grader.register.weight()
         if denominator == 0:
             return Decimal("0")
 
@@ -126,9 +133,9 @@ def summarize(assignment: GradingAssignment, report: AssignmentReport) -> Report
 def create_format_environment(custom_template_path: Path = None) -> jinja2.Environment:
     """Create the requisite environment."""
 
-    if custom_template_path is None:
-        custom_template_path = DEFAULT_TEMPLATE_PATH
-    return jinja2_create_environment(custom_template_path=custom_template_path)
+    return jinja2_create_environment(
+        Paths.TEMPLATE,
+        custom_template_path=custom_template_path)
 
 
 def format_report_markdown(
@@ -140,7 +147,7 @@ def format_report_markdown(
 
     with report_path.open() as file:
         report = AssignmentReport.load(json.load(file), assignment)
-    if report.partial:
+    if report.partial():
         return "Cannot format a partial report!"
 
     summary = summarize(assignment, report)
@@ -148,5 +155,5 @@ def format_report_markdown(
         environment = create_format_environment()
 
     environment.globals.update(assignment=assignment, summary=summary, options=options)
-    report_template = environment.get_template("template:grade/report/assignment.md")
+    report_template = environment.get_template("template:report/assignment.md")
     return report_template.render() + "\n"

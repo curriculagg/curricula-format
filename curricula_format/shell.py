@@ -1,7 +1,10 @@
 import argparse
 from pathlib import Path
+from typing import Iterable
 
-from curricula.shell.plugin import Plugin
+from curricula_grade.models import GradingAssignment
+from curricula_grade.shell import path_from_options, change_extension
+from curricula.shell.plugin import Plugin, PluginException
 from curricula.log import log
 
 
@@ -16,16 +19,21 @@ class FormatPlugin(Plugin):
         """Set up the parser."""
 
         to_group = parser.add_mutually_exclusive_group(required=False)
+        parser.add_argument("--grading", "-g", required=True, help="the grading artifact")
         to_group.add_argument("-f", "--file", dest="file", help="formatted output file for single report")
         to_group.add_argument("-d", "--directory", dest="directory", help="where to write formatted reports if batched")
         parser.add_argument("-t", "--template", help="the markdown template for the report")
         parser.add_argument("reports", nargs="+", help="a variable number of reports to format")
 
     @classmethod
-    def main(cls, grading_path: Path, options: dict):
+    def main(cls, parser: argparse.ArgumentParser, options: dict):
         """Format a bunch of reports."""
 
-        from curricula_format.template import create_format_environment
+        grading_path: Path = Path(options["grading"]).absolute()
+        if not grading_path.is_dir():
+            raise PluginException("grading artifact does not exist!")
+
+        from . import create_format_environment
 
         assignment = GradingAssignment.read(grading_path)
         custom_template_path = Path(options.get("template") or grading_path.joinpath("report.md"))

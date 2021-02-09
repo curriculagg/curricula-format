@@ -3,5 +3,5 @@
 Total score: ?/[[ assignment.grading.points ]]
 
 [%- for problem in assignment.problems | selectattr("grading.enabled") %]
-[%- include "template:grade/report/problem.md" -%]
+[%- include "template:report/problem.md" -%]
 [%- endfor -%]
