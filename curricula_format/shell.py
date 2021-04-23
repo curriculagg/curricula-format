@@ -75,5 +75,3 @@ class FormatPlugin(Plugin):
 
         for report_path in report_paths:
             cls.format_single(assignment, report_path, environment, options)
-
-
